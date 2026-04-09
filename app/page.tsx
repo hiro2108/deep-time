@@ -297,7 +297,7 @@ export default function TimerApp() {
 
         <Link
           href="/records"
-          className="fixed bottom-4 right-4 rounded-full bg-[#F97316] px-4 py-2 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-[#EA580C]"
+          className="fixed right-4 top-4 rounded-full bg-[#F97316] px-4 py-2 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-[#EA580C]"
         >
           View Records
         </Link>
