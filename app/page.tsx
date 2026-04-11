@@ -21,19 +21,74 @@ type TimerRecord = {
   category: Category;
 };
 
+type PersistedTimerSession = {
+  taskName: string;
+  category: Category;
+  mode: Mode;
+  timerMinutes: number;
+  startTime: number;
+  elapsedTime: number;
+  remainingTime: number;
+};
+
 const DEFAULT_TIMER_MINUTES = 25;
+const ACTIVE_TIMER_SESSION_KEY = "deep-time-active-session-v1";
+
+const readPersistedTimerSession = (): PersistedTimerSession | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const storedSession = localStorage.getItem(ACTIVE_TIMER_SESSION_KEY);
+  if (!storedSession) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(storedSession) as Partial<PersistedTimerSession>;
+    if (!parsed.startTime || typeof parsed.startTime !== "number") {
+      return null;
+    }
+
+    const restoredMode: Mode = parsed.mode === "stopwatch" ? "stopwatch" : "timer";
+    const restoredCategory: Category = CATEGORY_OPTIONS.includes(parsed.category as Category)
+      ? (parsed.category as Category)
+      : DEFAULT_CATEGORY;
+    const restoredMinutes = Math.min(
+      180,
+      Math.max(1, parsed.timerMinutes ?? DEFAULT_TIMER_MINUTES),
+    );
+
+    return {
+      taskName: parsed.taskName ?? "",
+      category: restoredCategory,
+      mode: restoredMode,
+      timerMinutes: restoredMinutes,
+      startTime: parsed.startTime,
+      elapsedTime: Math.max(0, parsed.elapsedTime ?? 0),
+      remainingTime: Math.max(0, parsed.remainingTime ?? restoredMinutes * 60),
+    };
+  } catch {
+    return null;
+  }
+};
 
 export default function TimerApp() {
-  const [taskName, setTaskName] = useState("");
-  const [category, setCategory] = useState<Category>(DEFAULT_CATEGORY);
-  const [mode, setMode] = useState<Mode>("timer");
-  const [timerMinutes, setTimerMinutes] = useState(DEFAULT_TIMER_MINUTES);
-  const [isRunning, setIsRunning] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [remainingTime, setRemainingTime] = useState(
-    DEFAULT_TIMER_MINUTES * 60,
+  const [restoredSession] = useState<PersistedTimerSession | null>(() =>
+    readPersistedTimerSession(),
   );
-  const [startTime, setStartTime] = useState<number | null>(null);
+  const [taskName, setTaskName] = useState(restoredSession?.taskName ?? "");
+  const [category, setCategory] = useState<Category>(restoredSession?.category ?? DEFAULT_CATEGORY);
+  const [mode, setMode] = useState<Mode>(restoredSession?.mode ?? "timer");
+  const [timerMinutes, setTimerMinutes] = useState(restoredSession?.timerMinutes ?? DEFAULT_TIMER_MINUTES);
+  const [isRunning, setIsRunning] = useState(Boolean(restoredSession));
+  const [elapsedTime, setElapsedTime] = useState(restoredSession?.elapsedTime ?? 0);
+  const [remainingTime, setRemainingTime] = useState(
+    restoredSession?.mode === "timer"
+      ? restoredSession.remainingTime
+      : (restoredSession?.timerMinutes ?? DEFAULT_TIMER_MINUTES) * 60,
+  );
+  const [startTime, setStartTime] = useState<number | null>(restoredSession?.startTime ?? null);
   const [todayDuration, setTodayDuration] = useState(0);
 
   useEffect(() => {
@@ -51,6 +106,34 @@ export default function TimerApp() {
   }, []);
 
   useEffect(() => {
+    if (!isRunning || !startTime) {
+      localStorage.removeItem(ACTIVE_TIMER_SESSION_KEY);
+      return;
+    }
+
+    const session: PersistedTimerSession = {
+      taskName,
+      category,
+      mode,
+      timerMinutes,
+      startTime,
+      elapsedTime,
+      remainingTime,
+    };
+
+    localStorage.setItem(ACTIVE_TIMER_SESSION_KEY, JSON.stringify(session));
+  }, [
+    isRunning,
+    taskName,
+    category,
+    mode,
+    timerMinutes,
+    startTime,
+    elapsedTime,
+    remainingTime,
+  ]);
+
+  useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
 
     if (isRunning && startTime) {
@@ -59,7 +142,6 @@ export default function TimerApp() {
         const diffSeconds = Math.floor((now - startTime) / 1000);
 
         if (mode === "stopwatch") {
-          // Calculate elapsed seconds from start timestamp to keep time accurate.
           setElapsedTime(diffSeconds);
           return;
         }
@@ -71,6 +153,7 @@ export default function TimerApp() {
         if (nextRemaining === 0) {
           setIsRunning(false);
           setStartTime(null);
+          localStorage.removeItem(ACTIVE_TIMER_SESSION_KEY);
           alert("The timer has finished.");
         }
       }, 1000);
@@ -115,6 +198,7 @@ export default function TimerApp() {
 
   const handleStop = async () => {
     setIsRunning(false);
+    localStorage.removeItem(ACTIVE_TIMER_SESSION_KEY);
     const duration = getCurrentDuration();
     const completedAt = new Date().toISOString();
     const completedAtTimestamp = startTime ?? Date.parse(completedAt);
@@ -169,7 +253,6 @@ export default function TimerApp() {
     }
   };
 
-  // Convert seconds to HH:MM:SS format.
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
