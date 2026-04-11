@@ -89,6 +89,8 @@ export default function TimerApp() {
       ? restoredSession.remainingTime
       : (restoredSession?.timerMinutes ?? DEFAULT_TIMER_MINUTES) * 60,
   );
+  const [isEditingDuration, setIsEditingDuration] = useState(false);
+  const [durationDraft, setDurationDraft] = useState(String(restoredSession?.timerMinutes ?? DEFAULT_TIMER_MINUTES));
   const [startTime, setStartTime] = useState<number | null>(restoredSession?.startTime ?? null);
   const [todayDuration, setTodayDuration] = useState(0);
 
@@ -280,6 +282,49 @@ export default function TimerApp() {
     }
   };
 
+  const handleTimerDisplaySetDuration = () => {
+    if (mode !== "timer" || isRunning) {
+      return;
+    }
+
+    setDurationDraft(String(timerMinutes));
+    setIsEditingDuration(true);
+  };
+
+  const commitTimerDisplayDuration = () => {
+    handleTimerMinutesChange(durationDraft);
+    setIsEditingDuration(false);
+  };
+
+  const handleTimerDisplayKeyDown = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    handleTimerDisplaySetDuration();
+  };
+
+  const handleDurationDraftKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitTimerDisplayDuration();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsEditingDuration(false);
+      setDurationDraft(String(timerMinutes));
+    }
+  };
+
+  const canEditTimerDisplay = mode === "timer" && !isRunning;
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-[#0F172A] p-4">
       <div className="w-full max-w-md space-y-6 rounded-2xl border border-slate-700 bg-slate-900 p-8 shadow-xl">
@@ -352,34 +397,43 @@ export default function TimerApp() {
             </button>
           </div>
 
-          {mode === "timer" && (
-            <div className="space-y-2">
-              <label
-                htmlFor="timer-minutes"
-                className="block text-sm font-medium text-slate-200"
-              >
-                Timer Duration (minutes)
-              </label>
-              <input
-                id="timer-minutes"
-                type="number"
-                min={1}
-                max={180}
-                step={1}
-                value={timerMinutes}
-                onChange={(e) => handleTimerMinutesChange(e.target.value)}
-                disabled={isRunning}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 p-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#F97316] disabled:bg-slate-700"
-              />
-              <p className="text-xs text-slate-400">
-                You can set a value between 1 and 180 minutes.
-              </p>
+          {canEditTimerDisplay && isEditingDuration ? (
+            <input
+              type="number"
+              min={1}
+              max={180}
+              step={1}
+              inputMode="numeric"
+              autoFocus
+              value={durationDraft}
+              onChange={(event) => setDurationDraft(event.target.value)}
+              onBlur={commitTimerDisplayDuration}
+              onKeyDown={handleDurationDraftKeyDown}
+              className="w-full rounded-xl border-2 border-[#F97316] bg-slate-800/70 py-8 text-center font-mono text-6xl text-slate-100 shadow-[0_0_0_3px_rgba(249,115,22,0.15)] outline-none timer-display"
+              aria-label="Set timer duration in minutes"
+            />
+          ) : (
+            <div
+              className={`rounded-xl py-8 text-center font-mono text-6xl text-slate-100 timer-display transition-all ${
+                canEditTimerDisplay
+                  ? "cursor-pointer border-2 border-[#F97316]/70 bg-slate-800/60 shadow-[0_0_0_2px_rgba(249,115,22,0.15)] hover:scale-[1.01] hover:border-[#FB923C] hover:bg-slate-800 active:scale-[0.99]"
+                  : "cursor-default"
+              }`}
+              role="button"
+              tabIndex={canEditTimerDisplay ? 0 : -1}
+              aria-label={canEditTimerDisplay ? "Set timer duration" : "Timer display"}
+              onPointerUp={handleTimerDisplaySetDuration}
+              onKeyDown={handleTimerDisplayKeyDown}
+            >
+              {formatTime(mode === "stopwatch" ? elapsedTime : remainingTime)}
             </div>
           )}
 
-          <div className="py-8 text-center font-mono text-6xl text-slate-100">
-            {formatTime(mode === "stopwatch" ? elapsedTime : remainingTime)}
-          </div>
+          {canEditTimerDisplay && !isEditingDuration && (
+            <p className="-mt-2 text-center text-xs font-semibold tracking-wide text-[#FDBA74]">
+              Tap timer to set minutes
+            </p>
+          )}
 
           {!isRunning ? (
             <button
