@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import ytmIcon from "./ytm-icon.png";
@@ -74,6 +74,7 @@ const readPersistedTimerSession = (): PersistedTimerSession | null => {
 };
 
 export default function TimerApp() {
+  const finishHandledRef = useRef(false);
   const [restoredSession] = useState<PersistedTimerSession | null>(() =>
     readPersistedTimerSession(),
   );
@@ -133,6 +134,71 @@ export default function TimerApp() {
     remainingTime,
   ]);
 
+  const getCurrentDuration = () => {
+    const timerSeconds = timerMinutes * 60;
+    if (mode === "stopwatch") return elapsedTime;
+    return timerSeconds - remainingTime;
+  };
+
+  function formatTime(seconds: number) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return [h, m, s].map((v) => v.toString().padStart(2, "0")).join(":");
+  }
+
+  const formatStartTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleString("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const completeAndSaveSession = useCallback(async (duration: number, source: "manual" | "auto") => {
+    setIsRunning(false);
+    setStartTime(null);
+    localStorage.removeItem(ACTIVE_TIMER_SESSION_KEY);
+
+    const completedAt = new Date().toISOString();
+    const completedAtTimestamp = startTime ?? Date.parse(completedAt);
+    const normalizedTaskName = taskName.trim() || `${category}${formatStartTime(completedAtTimestamp)}`;
+
+    const nextRecord: TimerRecord = {
+      taskName: normalizedTaskName,
+      duration,
+      date: completedAt,
+      mode,
+      category,
+    };
+
+    const saveResult = await insertTimerRecord(nextRecord);
+    if (saveResult.error) {
+      alert(`Failed to save record. ${saveResult.error}`);
+      finishHandledRef.current = false;
+      return;
+    }
+
+    const { duration: nextTodayDuration, error: durationError } = await fetchTodayDuration();
+    if (!durationError) {
+      setTodayDuration(nextTodayDuration);
+    }
+
+    if (source === "auto") {
+      alert("The timer has finished.");
+    } else {
+      alert(`${normalizedTaskName} completed for ${formatTime(duration)}!`);
+    }
+
+    setTaskName("");
+    setCategory(DEFAULT_CATEGORY);
+    setElapsedTime(0);
+    setRemainingTime(timerMinutes * 60);
+    setStartTime(null);
+  }, [category, mode, startTime, taskName, timerMinutes]);
+
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
 
@@ -151,34 +217,21 @@ export default function TimerApp() {
         setRemainingTime(nextRemaining);
 
         if (nextRemaining === 0) {
-          setIsRunning(false);
-          setStartTime(null);
-          localStorage.removeItem(ACTIVE_TIMER_SESSION_KEY);
-          alert("The timer has finished.");
+          if (finishHandledRef.current) {
+            return;
+          }
+
+          finishHandledRef.current = true;
+          void completeAndSaveSession(timerSeconds, "auto");
         }
       }, 1000);
     }
 
     return () => clearInterval(interval);
-  }, [isRunning, mode, startTime, timerMinutes]);
-
-  const getCurrentDuration = () => {
-    const timerSeconds = timerMinutes * 60;
-    if (mode === "stopwatch") return elapsedTime;
-    return timerSeconds - remainingTime;
-  };
-
-  const formatStartTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString("en-US", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  }, [isRunning, mode, startTime, timerMinutes, completeAndSaveSession]);
 
   const handleStart = () => {
+    finishHandledRef.current = false;
     const now = Date.now();
     const normalizedTaskName = taskName.trim() || `${category}${formatStartTime(now)}`;
 
@@ -197,38 +250,12 @@ export default function TimerApp() {
   };
 
   const handleStop = async () => {
-    setIsRunning(false);
-    localStorage.removeItem(ACTIVE_TIMER_SESSION_KEY);
-    const duration = getCurrentDuration();
-    const completedAt = new Date().toISOString();
-    const completedAtTimestamp = startTime ?? Date.parse(completedAt);
-    const normalizedTaskName = taskName.trim() || `${category}${formatStartTime(completedAtTimestamp)}`;
-
-    const nextRecord: TimerRecord = {
-      taskName: normalizedTaskName,
-      duration,
-      date: completedAt,
-      mode,
-      category,
-    };
-
-    const saveResult = await insertTimerRecord(nextRecord);
-    if (saveResult.error) {
-      alert(`Failed to save record. ${saveResult.error}`);
+    if (finishHandledRef.current) {
       return;
     }
 
-    const { duration: nextTodayDuration, error: durationError } = await fetchTodayDuration();
-    if (!durationError) {
-      setTodayDuration(nextTodayDuration);
-    }
-
-    alert(`${normalizedTaskName} completed for ${formatTime(duration)}!`);
-    setTaskName("");
-    setCategory(DEFAULT_CATEGORY);
-    setElapsedTime(0);
-    setRemainingTime(timerMinutes * 60);
-    setStartTime(null);
+    finishHandledRef.current = true;
+    await completeAndSaveSession(getCurrentDuration(), "manual");
   };
 
   const handleModeChange = (nextMode: Mode) => {
@@ -251,13 +278,6 @@ export default function TimerApp() {
     if (!isRunning) {
       setRemainingTime(nextMinutes * 60);
     }
-  };
-
-  const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return [h, m, s].map((v) => v.toString().padStart(2, "0")).join(":");
   };
 
   return (
