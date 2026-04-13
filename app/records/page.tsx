@@ -13,7 +13,12 @@ const formatTime = (seconds: number) => {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  return [h, m, s].map((v) => v.toString().padStart(2, "0")).join(":");
+
+  if (h === 0) {
+    return [m, s].map((v) => v.toString().padStart(2, "0")).join(":");
+  }
+
+  return [h.toString(), m.toString().padStart(2, "0"), s.toString().padStart(2, "0")].join(":");
 };
 
 export default function RecordsPage() {
@@ -91,13 +96,14 @@ export default function RecordsPage() {
                   className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
                 >
                   <p className="text-sm font-semibold text-slate-100">{record.taskName}</p>
+                  <p className="text-sm font-extrabold tracking-wide text-[#FDBA74]">
+                    Duration: {formatTime(record.duration)}
+                  </p>
                   <p className="text-xs text-slate-300">
                     Mode: {record.mode === "timer" ? "Timer" : "Stopwatch"}
                   </p>
                   <p className="text-xs text-slate-300">Category: {record.category}</p>
-                  <p className="text-xs text-slate-300">
-                    Duration: {formatTime(record.duration)} / Date: {new Date(record.date).toLocaleString("en-US")}
-                  </p>
+                  <p className="text-xs text-slate-300">Date: {new Date(record.date).toLocaleString("en-US")}</p>
                   <button
                     type="button"
                     onClick={() => void handleDeleteRecord(record.id)}
