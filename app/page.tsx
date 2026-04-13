@@ -80,7 +80,7 @@ export default function TimerApp() {
   );
   const [taskName, setTaskName] = useState(restoredSession?.taskName ?? "");
   const [category, setCategory] = useState<Category>(restoredSession?.category ?? DEFAULT_CATEGORY);
-  const [mode, setMode] = useState<Mode>(restoredSession?.mode ?? "timer");
+  const [mode, setMode] = useState<Mode>(restoredSession?.mode ?? "stopwatch");
   const [timerMinutes, setTimerMinutes] = useState(restoredSession?.timerMinutes ?? DEFAULT_TIMER_MINUTES);
   const [isRunning, setIsRunning] = useState(Boolean(restoredSession));
   const [elapsedTime, setElapsedTime] = useState(restoredSession?.elapsedTime ?? 0);
@@ -378,18 +378,6 @@ export default function TimerApp() {
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => handleModeChange("timer")}
-              disabled={isRunning}
-              className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
-                mode === "timer"
-                  ? "border-[#F97316] bg-[#F97316] text-white"
-                  : "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
-              } disabled:cursor-not-allowed disabled:opacity-60`}
-            >
-                Timer
-            </button>
-            <button
-              type="button"
               onClick={() => handleModeChange("stopwatch")}
               disabled={isRunning}
               className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
@@ -399,6 +387,18 @@ export default function TimerApp() {
               } disabled:cursor-not-allowed disabled:opacity-60`}
             >
                 Stopwatch
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange("timer")}
+              disabled={isRunning}
+              className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                mode === "timer"
+                  ? "border-[#F97316] bg-[#F97316] text-white"
+                  : "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
+              } disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+                Timer
             </button>
           </div>
 
