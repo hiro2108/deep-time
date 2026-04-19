@@ -6,6 +6,7 @@ import {
   CATEGORY_OPTIONS,
   deleteTimerRecord,
   fetchTimerRecords,
+  type Category,
   type TimerRecord,
 } from "@/lib/timer-records";
 
@@ -21,9 +22,72 @@ const formatTime = (seconds: number) => {
   return [h.toString(), m.toString().padStart(2, "0"), s.toString().padStart(2, "0")].join(":");
 };
 
+const formatDateKey = (dateValue: string) => {
+  return new Date(dateValue).toLocaleDateString("en-CA");
+};
+
+const getWeekStartDate = (dateValue: string) => {
+  const date = new Date(dateValue);
+  const weekStart = new Date(date);
+  weekStart.setHours(0, 0, 0, 0);
+  const mondayBasedDayIndex = (date.getDay() + 6) % 7;
+  weekStart.setDate(date.getDate() - mondayBasedDayIndex);
+  return weekStart;
+};
+
+const formatWeekKey = (dateValue: string) => {
+  return getWeekStartDate(dateValue).toISOString().slice(0, 10);
+};
+
+const formatWeekLabel = (weekKey: string) => {
+  return `Week of ${new Date(weekKey).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })}`;
+};
+
+const getTotalDuration = (items: TimerRecord[]) => {
+  return items.reduce((sum, item) => sum + item.duration, 0);
+};
+
+const RecordItem = ({
+  record,
+  onDelete,
+}: {
+  record: TimerRecord;
+  onDelete: (id: number) => void;
+}) => (
+  <li
+    key={record.id}
+    className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+  >
+    <p className="text-sm font-semibold text-slate-100">{record.taskName}</p>
+    <p className="text-sm font-extrabold tracking-wide text-[#FDBA74]">
+      Duration: {formatTime(record.duration)}
+    </p>
+    <p className="text-xs text-slate-300">
+      Mode: {record.mode === "timer" ? "Timer" : "Stopwatch"}
+    </p>
+    <p className="text-xs text-slate-300">Category: {record.category}</p>
+    <p className="text-xs text-slate-300">Date: {new Date(record.date).toLocaleString("en-US")}</p>
+    <button
+      type="button"
+      onClick={() => onDelete(record.id)}
+      className="mt-2 rounded-md border border-[#F97316]/40 px-2 py-1 text-xs font-semibold text-[#F97316] hover:bg-[#F97316]/10"
+    >
+      Delete
+    </button>
+  </li>
+);
+
 export default function RecordsPage() {
   const [records, setRecords] = useState<TimerRecord[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"date" | "week">("date");
+  const [selectedCategory, setSelectedCategory] = useState<Category | "all">("all");
+  const [showMoreByDate, setShowMoreByDate] = useState(false);
+  const [showMoreByWeek, setShowMoreByWeek] = useState(false);
 
   useEffect(() => {
     const loadRecords = async () => {
@@ -47,6 +111,32 @@ export default function RecordsPage() {
       .filter((record) => record.category === category)
       .reduce((sum, record) => sum + record.duration, 0),
   }));
+  const filteredRecords = selectedCategory === "all"
+    ? records
+    : records.filter((record) => record.category === selectedCategory);
+  const sortedRecords = [...filteredRecords].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  );
+  const recordsByDate = sortedRecords.reduce<Record<string, TimerRecord[]>>((acc, record) => {
+    const key = formatDateKey(record.date);
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+
+    acc[key].push(record);
+    return acc;
+  }, {});
+  const recordsByWeek = sortedRecords.reduce<Record<string, TimerRecord[]>>((acc, record) => {
+    const key = formatWeekKey(record.date);
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+
+    acc[key].push(record);
+    return acc;
+  }, {});
+  const dateKeys = Object.keys(recordsByDate).sort((a, b) => b.localeCompare(a));
+  const weekKeys = Object.keys(recordsByWeek).sort((a, b) => b.localeCompare(a));
 
   const handleDeleteRecord = async (id: number) => {
     const { error } = await deleteTimerRecord(id);
@@ -89,37 +179,142 @@ export default function RecordsPage() {
           {records.length === 0 ? (
             <p className="text-sm text-slate-400">No records yet.</p>
           ) : (
-            <ul className="space-y-2">
-              {records.map((record) => (
-                <li
-                  key={record.id}
-                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2"
+            <div className="space-y-5">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory("all")}
+                  className={`rounded-md border border-[#F97316]/40 px-3 py-1 text-xs font-semibold transition-colors ${
+                    selectedCategory === "all"
+                      ? "bg-[#F97316] text-white"
+                      : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  }`}
                 >
-                  <p className="text-sm font-semibold text-slate-100">{record.taskName}</p>
-                  <p className="text-sm font-extrabold tracking-wide text-[#FDBA74]">
-                    Duration: {formatTime(record.duration)}
-                  </p>
-                  <p className="text-xs text-slate-300">
-                    Mode: {record.mode === "timer" ? "Timer" : "Stopwatch"}
-                  </p>
-                  <p className="text-xs text-slate-300">Category: {record.category}</p>
-                  <p className="text-xs text-slate-300">Date: {new Date(record.date).toLocaleString("en-US")}</p>
+                  All Categories
+                </button>
+                {CATEGORY_OPTIONS.map((category) => (
                   <button
+                    key={category}
                     type="button"
-                    onClick={() => void handleDeleteRecord(record.id)}
-                    className="mt-2 rounded-md border border-[#F97316]/40 px-2 py-1 text-xs font-semibold text-[#F97316] hover:bg-[#F97316]/10"
+                    onClick={() => setSelectedCategory(category)}
+                    className={`rounded-md border border-[#F97316]/40 px-3 py-1 text-xs font-semibold transition-colors ${
+                      selectedCategory === category
+                        ? "bg-[#F97316] text-white"
+                        : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    }`}
                   >
-                    Delete
+                    {category}
                   </button>
-                </li>
-              ))}
-            </ul>
+                ))}
+              </div>
+
+              <div className="inline-flex rounded-lg border border-[#F97316]/40 bg-slate-800 p-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("date")}
+                  className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                    activeTab === "date"
+                      ? "bg-[#F97316] text-white"
+                      : "text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  By Date
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("week")}
+                  className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                    activeTab === "week"
+                      ? "bg-[#F97316] text-white"
+                      : "text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  By Week
+                </button>
+              </div>
+
+              {filteredRecords.length === 0 ? (
+                <p className="text-sm text-slate-400">No records in this category.</p>
+              ) : (
+                <>
+                  {activeTab === "date" ? (
+                    <section>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#F97316]">By Date</p>
+                      <div className="space-y-3">
+                        {(showMoreByDate ? dateKeys : dateKeys.slice(0, 7)).map((dateKey) => (
+                          <div key={dateKey} className="space-y-2">
+                            <p className="flex items-center justify-between text-xs font-semibold text-slate-300">
+                              <span>{dateKey}</span>
+                              <span className="text-[#FDBA74]">{formatTime(getTotalDuration(recordsByDate[dateKey]))}</span>
+                            </p>
+                            <ul className="space-y-2">
+                              {recordsByDate[dateKey].map((record) => (
+                                <RecordItem
+                                  key={record.id}
+                                  record={record}
+                                  onDelete={(id) => {
+                                    void handleDeleteRecord(id);
+                                  }}
+                                />
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                      {!showMoreByDate && dateKeys.length > 7 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowMoreByDate(true)}
+                          className="mt-3 w-full rounded-md border border-[#F97316]/40 bg-slate-800 px-3 py-2 text-xs font-semibold text-[#F97316] transition-colors hover:bg-slate-700"
+                        >
+                          View More ({dateKeys.length - 7} earlier days)
+                        </button>
+                      )}
+                    </section>
+                  ) : (
+                    <section>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#F97316]">By Week</p>
+                      <div className="space-y-3">
+                        {(showMoreByWeek ? weekKeys : weekKeys.slice(0, 1)).map((weekKey) => (
+                          <div key={weekKey} className="space-y-2">
+                            <p className="flex items-center justify-between text-xs font-semibold text-slate-300">
+                              <span>{formatWeekLabel(weekKey)}</span>
+                              <span className="text-[#FDBA74]">{formatTime(getTotalDuration(recordsByWeek[weekKey]))}</span>
+                            </p>
+                            <ul className="space-y-2">
+                              {recordsByWeek[weekKey].map((record) => (
+                                <RecordItem
+                                  key={`week-${record.id}`}
+                                  record={record}
+                                  onDelete={(id) => {
+                                    void handleDeleteRecord(id);
+                                  }}
+                                />
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                      {!showMoreByWeek && weekKeys.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowMoreByWeek(true)}
+                          className="mt-3 w-full rounded-md border border-[#F97316]/40 bg-slate-800 px-3 py-2 text-xs font-semibold text-[#F97316] transition-colors hover:bg-slate-700"
+                        >
+                          View More ({weekKeys.length - 1} earlier weeks)
+                        </button>
+                      )}
+                    </section>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </div>
 
         <Link
           href="/"
-          className="mt-6 block text-center text-sm font-semibold text-[#F97316] hover:text-[#FB923C]"
+          className="fixed right-4 top-4 rounded-full bg-[#F97316] px-4 py-2 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-[#EA580C]"
         >
           Back to Timer
         </Link>
