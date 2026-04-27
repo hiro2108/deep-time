@@ -75,6 +75,7 @@ const readPersistedTimerSession = (): PersistedTimerSession | null => {
 
 export default function TimerApp() {
   const finishHandledRef = useRef(false);
+  const alarmAudioRef = useRef<HTMLAudioElement | null>(null);
   const [restoredSession] = useState<PersistedTimerSession | null>(() =>
     readPersistedTimerSession(),
   );
@@ -93,6 +94,7 @@ export default function TimerApp() {
   const [durationDraft, setDurationDraft] = useState(String(restoredSession?.timerMinutes ?? DEFAULT_TIMER_MINUTES));
   const [startTime, setStartTime] = useState<number | null>(restoredSession?.startTime ?? null);
   const [todayDuration, setTodayDuration] = useState(0);
+  const [isAlarmActive, setIsAlarmActive] = useState(false);
 
   useEffect(() => {
     const loadTodayDuration = async () => {
@@ -106,6 +108,18 @@ export default function TimerApp() {
     };
 
     void loadTodayDuration();
+  }, []);
+
+  useEffect(() => {
+    alarmAudioRef.current = new Audio("/alarm.mp3");
+    alarmAudioRef.current.preload = "auto";
+
+    return () => {
+      if (alarmAudioRef.current) {
+        alarmAudioRef.current.pause();
+        alarmAudioRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -164,6 +178,60 @@ export default function TimerApp() {
     });
   };
 
+  const playAlarm = useCallback(() => {
+    if (!alarmAudioRef.current) {
+      return;
+    }
+
+    setIsAlarmActive(true);
+    alarmAudioRef.current.loop = true;
+    alarmAudioRef.current.currentTime = 0;
+    void alarmAudioRef.current.play().catch(() => {
+      setIsAlarmActive(false);
+    });
+  }, []);
+
+  const stopAlarm = useCallback(() => {
+    setIsAlarmActive(false);
+    if (!alarmAudioRef.current) {
+      return;
+    }
+
+    alarmAudioRef.current.pause();
+    alarmAudioRef.current.currentTime = 0;
+    alarmAudioRef.current.loop = false;
+  }, []);
+
+  const primeAlarmAudio = useCallback(() => {
+    if (!alarmAudioRef.current) {
+      return;
+    }
+
+    const previousLoop = alarmAudioRef.current.loop;
+    const previousMuted = alarmAudioRef.current.muted;
+    alarmAudioRef.current.loop = false;
+    alarmAudioRef.current.muted = true;
+    alarmAudioRef.current.currentTime = 0;
+
+    void alarmAudioRef.current.play().then(() => {
+      if (!alarmAudioRef.current) {
+        return;
+      }
+
+      alarmAudioRef.current.pause();
+      alarmAudioRef.current.currentTime = 0;
+      alarmAudioRef.current.muted = previousMuted;
+      alarmAudioRef.current.loop = previousLoop;
+    }).catch(() => {
+      if (!alarmAudioRef.current) {
+        return;
+      }
+
+      alarmAudioRef.current.muted = previousMuted;
+      alarmAudioRef.current.loop = previousLoop;
+    });
+  }, []);
+
   const completeAndSaveSession = useCallback(async (duration: number, source: "manual" | "auto") => {
     setIsRunning(false);
     setStartTime(null);
@@ -193,9 +261,7 @@ export default function TimerApp() {
       setTodayDuration(nextTodayDuration);
     }
 
-    if (source === "auto") {
-      alert("The timer has finished.");
-    } else {
+    if (source === "manual") {
       alert(`${normalizedTaskName} completed for ${formatTime(duration)}!`);
     }
 
@@ -229,16 +295,18 @@ export default function TimerApp() {
           }
 
           finishHandledRef.current = true;
-          void completeAndSaveSession(timerSeconds, "auto");
+          playAlarm();
         }
       }, 1000);
     }
 
     return () => clearInterval(interval);
-  }, [isRunning, mode, startTime, timerMinutes, completeAndSaveSession]);
+  }, [isRunning, mode, startTime, timerMinutes, playAlarm]);
 
   const handleStart = () => {
     finishHandledRef.current = false;
+    stopAlarm();
+    primeAlarmAudio();
     const now = Date.now();
     const normalizedTaskName = taskName.trim() || `${category}${formatStartTime(now)}`;
 
@@ -257,10 +325,7 @@ export default function TimerApp() {
   };
 
   const handleStop = async () => {
-    if (finishHandledRef.current) {
-      return;
-    }
-
+    stopAlarm();
     finishHandledRef.current = true;
     await completeAndSaveSession(getCurrentDuration(), "manual");
   };
@@ -331,8 +396,14 @@ export default function TimerApp() {
   const canEditTimerDisplay = mode === "timer" && !isRunning;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-[#0F172A] p-4">
-      <div className="w-full max-w-md space-y-6 rounded-2xl border border-slate-700 bg-slate-900 p-8 shadow-xl">
+    <main className={`flex min-h-screen flex-col items-center justify-center p-4 transition-colors ${
+      isAlarmActive ? "bg-red-700" : isRunning ? "bg-[#112B25]" : "bg-[#0F172A]"
+    }`}>
+      <div className={`w-full max-w-md space-y-6 rounded-2xl border bg-slate-900 p-8 shadow-xl transition-all ${
+        isRunning
+          ? "border-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.25)]"
+          : "border-slate-700"
+      }`}>
         <h1 className="text-center text-2xl font-bold text-slate-100">
           Focus Timer
         </h1>
@@ -420,9 +491,11 @@ export default function TimerApp() {
           ) : (
             <div
               className={`rounded-xl py-8 text-center font-mono text-6xl text-slate-100 timer-display transition-all ${
-                canEditTimerDisplay
-                  ? "cursor-pointer border-2 border-[#F97316]/70 bg-slate-800/60 shadow-[0_0_0_2px_rgba(249,115,22,0.15)] hover:scale-[1.01] hover:border-[#FB923C] hover:bg-slate-800 active:scale-[0.99]"
-                  : "cursor-default"
+                isRunning
+                  ? "border-2 border-emerald-400 bg-emerald-900/20 shadow-[0_0_0_3px_rgba(52,211,153,0.25)]"
+                  : canEditTimerDisplay
+                    ? "cursor-pointer border-2 border-[#F97316]/70 bg-slate-800/60 shadow-[0_0_0_2px_rgba(249,115,22,0.15)] hover:scale-[1.01] hover:border-[#FB923C] hover:bg-slate-800 active:scale-[0.99]"
+                    : "cursor-default"
               }`}
               role="button"
               tabIndex={canEditTimerDisplay ? 0 : -1}
