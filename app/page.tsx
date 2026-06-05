@@ -8,7 +8,7 @@ import {
   CATEGORY_OPTIONS,
   DEFAULT_CATEGORY,
   type Category,
-  fetchTodayDuration,
+  fetchWeekDuration,
   insertTimerRecord,
   type Mode,
 } from "@/lib/timer-records";
@@ -93,21 +93,21 @@ export default function TimerApp() {
   const [isEditingDuration, setIsEditingDuration] = useState(false);
   const [durationDraft, setDurationDraft] = useState(String(restoredSession?.timerMinutes ?? DEFAULT_TIMER_MINUTES));
   const [startTime, setStartTime] = useState<number | null>(restoredSession?.startTime ?? null);
-  const [todayDuration, setTodayDuration] = useState(0);
+  const [weekDuration, setWeekDuration] = useState(0);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
 
   useEffect(() => {
-    const loadTodayDuration = async () => {
-      const { duration, error } = await fetchTodayDuration();
+    const loadWeekDuration = async () => {
+      const { duration, error } = await fetchWeekDuration();
       if (error) {
         console.error(error);
         return;
       }
 
-      setTodayDuration(duration);
+      setWeekDuration(duration);
     };
 
-    void loadTodayDuration();
+    void loadWeekDuration();
   }, []);
 
   useEffect(() => {
@@ -256,9 +256,9 @@ export default function TimerApp() {
       return;
     }
 
-    const { duration: nextTodayDuration, error: durationError } = await fetchTodayDuration();
+    const { duration: nextWeekDuration, error: durationError } = await fetchWeekDuration();
     if (!durationError) {
-      setTodayDuration(nextTodayDuration);
+      setWeekDuration(nextWeekDuration);
     }
 
     if (source === "manual") {
@@ -410,9 +410,9 @@ export default function TimerApp() {
 
         <div className="rounded-lg border border-[#F97316]/40 bg-slate-800 px-3 py-2">
           <p className="text-xs font-semibold tracking-wide text-[#F97316]">
-            Total Focus Time Today
+            Total Focus Time This Week
           </p>
-          <p className="text-xl font-bold text-slate-100">{formatTime(todayDuration)}</p>
+          <p className="text-xl font-bold text-slate-100">{formatTime(weekDuration)}</p>
         </div>
 
         <div className="space-y-2">

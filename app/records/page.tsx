@@ -51,6 +51,8 @@ const getTotalDuration = (items: TimerRecord[]) => {
   return items.reduce((sum, item) => sum + item.duration, 0);
 };
 
+const currentWeekKey = formatWeekKey(new Date().toISOString());
+
 const RecordItem = ({
   record,
   onDelete,
@@ -104,7 +106,9 @@ export default function RecordsPage() {
     void loadRecords();
   }, []);
 
-  const totalDuration = records.reduce((sum, record) => sum + record.duration, 0);
+  const totalDuration = records
+    .filter((record) => formatWeekKey(record.date) === currentWeekKey)
+    .reduce((sum, record) => sum + record.duration, 0);
   const categoryDurations = CATEGORY_OPTIONS.map((category) => ({
     category,
     duration: records
@@ -155,7 +159,7 @@ export default function RecordsPage() {
         <h1 className="text-2xl font-bold text-slate-100">Records</h1>
 
         <div className="mt-4 rounded-lg border border-[#F97316]/40 bg-slate-800 px-3 py-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#F97316]">Total Focus Time</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#F97316]">Total Focus Time This Week</p>
           <p className="text-xl font-bold text-slate-100">{formatTime(totalDuration)}</p>
         </div>
 

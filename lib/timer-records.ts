@@ -146,23 +146,27 @@ export const deleteTimerRecord = async (id: number) => {
   return { error: null as string | null };
 };
 
-export const fetchTodayDuration = async () => {
+export const fetchWeekDuration = async () => {
   const client = getSupabaseClient();
   if (!client) {
     return { duration: 0, error: getMissingConfigMessage() };
   }
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const weekStart = new Date(now);
+  const dayOfWeek = weekStart.getDay();
+  const daysSinceMonday = (dayOfWeek + 6) % 7;
+  weekStart.setDate(weekStart.getDate() - daysSinceMonday);
+  weekStart.setHours(0, 0, 0, 0);
 
-  const tomorrowStart = new Date(todayStart);
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const nextWeekStart = new Date(weekStart);
+  nextWeekStart.setDate(nextWeekStart.getDate() + 7);
 
   const { data, error } = await client
     .from(TABLE_NAME)
     .select("duration")
-    .gte("date", todayStart.toISOString())
-    .lt("date", tomorrowStart.toISOString());
+    .gte("date", weekStart.toISOString())
+    .lt("date", nextWeekStart.toISOString());
 
   if (error) {
     return { duration: 0, error: error.message };
