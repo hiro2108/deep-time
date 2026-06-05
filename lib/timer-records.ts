@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export type Mode = "timer" | "stopwatch";
-export type Category = "Uncategorized" | "Work" | "Side Hustle" | "Blog" | "Other";
+export type Category = "Work" | "English" | "Dating app" | "Side Hustle" | "Blog" | "Other";
 
 export type TimerRecord = {
   id: number;
@@ -23,11 +23,12 @@ type TimerRecordRow = {
   category: Category;
 };
 
-export const DEFAULT_CATEGORY: Category = "Uncategorized";
+export const DEFAULT_CATEGORY: Category = "Other";
 
 export const CATEGORY_OPTIONS: Category[] = [
-  "Uncategorized",
   "Work",
+  "English",
+  "Dating app",
   "Side Hustle",
   "Blog",
   "Other",
@@ -60,10 +61,12 @@ const normalizeCategory = (value: unknown): Category => {
   }
 
   switch (value) {
-    case "未設定":
-      return "Uncategorized";
+    case "英語":
+      return "English";
     case "仕事":
       return "Work";
+    case "Dating app":
+      return "Dating app";
     case "副業":
       return "Side Hustle";
     case "ブログ":

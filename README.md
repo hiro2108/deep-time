@@ -32,7 +32,7 @@ create table if not exists public.timer_records (
 	duration integer not null,
 	date timestamptz not null default now(),
 	mode text not null check (mode in ('timer', 'stopwatch')),
-	category text not null check (category in ('Uncategorized', 'Work', 'Side Hustle', 'Blog', 'Other'))
+	category text not null check (category in ('Work', 'Side Hustle', 'Blog', 'Other', 'English', 'Dating app'))
 );
 
 alter table public.timer_records enable row level security;
